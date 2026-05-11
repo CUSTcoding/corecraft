@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bitcoin Monitor</title>
+  <style>
+    :root {
+      --bg: #0d0d0d; --surface: #161616; --border: #2a2a2a;
+      --text: #e8e8e8; --muted: #777;
+      --orange: #f7931a; --orange-dim: rgba(247,147,26,.12);
+      --green: #22c55e; --green-dim: rgba(34,197,94,.12);
+      --red: #ef4444;   --red-dim: rgba(239,68,68,.12);
+      --blue: #3b82f6;  --purple: #a855f7; --yellow: #eab308;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Courier New', monospace;
+           min-height: 100vh; padding: 20px; }
+
+    
+    header { display: flex; align-items: center; justify-content: space-between;
+             margin-bottom: 24px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { width: 34px; height: 34px; background: var(--orange); border-radius: 8px;
+                 display: flex; align-items: center; justify-content: center;
+                 font-size: 18px; font-weight: bold; color: #fff; }
+    h1 { font-size: 1.2rem; letter-spacing: 1px; color: var(--orange); }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+             box-shadow: 0 0 6px var(--green); animation: blink 2s infinite; }
+    .pulse.dead { background: var(--red); box-shadow: 0 0 6px var(--red); animation: none; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .ts { font-size: .68rem; color: var(--muted); }
+
+    
+    .wallet-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+                  padding: 14px 18px; background: var(--surface); border: 1px solid var(--border);
+                  border-radius: 12px; flex-wrap: wrap; }
+    .wallet-bar label { font-size: .75rem; color: var(--muted); white-space: nowrap; }
+    .wallet-bar select {
+      background: #1e1e1e; color: var(--text); border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 10px; font-family: inherit; font-size: .8rem;
+      cursor: pointer; min-width: 180px;
+    }
+    .wallet-bar select:focus { outline: 1px solid var(--orange); }
+    .wallet-bar button {
+      background: var(--orange); color: #000; border: none; border-radius: 6px;
+      padding: 7px 16px; font-family: inherit; font-size: .78rem; font-weight: bold;
+      cursor: pointer; transition: opacity .15s;
+    }
+    .wallet-bar button:hover { opacity: .85; }
+    .wallet-badge { font-size: .72rem; padding: 3px 8px; border-radius: 4px;
+                    background: var(--orange-dim); color: var(--orange);
+                    border: 1px solid var(--orange); white-space: nowrap; }
+
+    
+    .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            margin-bottom: 18px; }
+    .grid-2 { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; margin-bottom: 18px; }
+    @media(max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+            padding: 18px; }
+    .card-title { font-size: .72rem; color: var(--muted); text-transform: uppercase;
+                  letter-spacing: .08em; margin-bottom: 14px;
+                  display: flex; align-items: center; gap: 6px; }
+    .badge { font-size: .62rem; padding: 1px 6px; border-radius: 4px; }
+    .badge.zmq { background: var(--orange-dim); color: var(--orange); border: 1px solid var(--orange); }
+    .badge.rpc { background: rgba(59,130,246,.12); color: var(--blue); border: 1px solid var(--blue); }
+
+    
+    .stat { margin-bottom: 12px; }
+    .stat:last-child { margin-bottom: 0; }
+    .stat-label { font-size: .68rem; color: var(--muted); margin-bottom: 3px; }
+    .stat-value { font-size: 1.5rem; font-weight: bold; line-height: 1; }
+    .stat-value.orange { color: var(--orange); }
+    .stat-value.green  { color: var(--green);  }
+    .stat-value.blue   { color: var(--blue);   }
+    .stat-value.purple { color: var(--purple); }
+    .stat-sub { font-size: .68rem; color: var(--muted); margin-top: 2px; }
+
+    
+    .div-card { border-color: var(--green); background: var(--green-dim); }
+    .div-card.alert { border-color: var(--red); background: var(--red-dim);
+                      animation: alertPulse 1.5s infinite; }
+    @keyframes alertPulse { 0%,100%{border-color:var(--red)} 50%{border-color:rgba(239,68,68,.3)} }
+    .div-status { font-size: 1rem; font-weight: bold; margin-bottom: 12px; }
+    .div-status.ok { color: var(--green); }
+    .div-status.warn { color: var(--red); }
+    .hash-label { font-size: .66rem; color: var(--muted); margin-bottom: 2px; }
+    .hash-value { font-size: .66rem; word-break: break-all; background: rgba(0,0,0,.3);
+                  padding: 4px 8px; border-radius: 4px; margin-bottom: 8px; }
+
+    
+    .ev-list { display: flex; flex-direction: column; gap: 5px; }
+    .ev-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+               border-radius: 7px; background: rgba(255,255,255,.03);
+               border: 1px solid var(--border); font-size: .7rem; }
+    .ev-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .ev-dot.blk { background: var(--orange); }
+    .ev-dot.tx  { background: var(--blue); }
+    .ev-hash { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ev-time { color: var(--muted); flex-shrink: 0; }
+
+    
+    .chip { display: inline-block; font-size: .62rem; padding: 2px 7px; border-radius: 10px;
+            font-weight: bold; margin-left: 4px; }
+    .chip.broadcast { background: rgba(234,179,8,.15); color: var(--yellow); }
+    .chip.mempool   { background: rgba(59,130,246,.15); color: var(--blue); }
+    .chip.confirmed { background: var(--green-dim); color: var(--green); }
+    .chip.unknown   { background: rgba(239,68,68,.15); color: var(--red); }
+    .warn-text { color: var(--yellow); font-size: .65rem; margin-top: 3px; }
+
+    .empty { color: var(--muted); font-size: .72rem; text-align: center; padding: 14px 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">₿</div>
+    <h1>BITCOIN MONITOR</h1>
+  </div>
+  <div class="header-right">
+    <div class="pulse" id="pulse"></div>
+    <span class="ts" id="lastUpdate">—</span>
+  </div>
+</header>
+
+
+<div class="wallet-bar">
+  <label>Wallet ativa:</label>
+  <select id="walletSelect" onchange="onWalletChange()">
+    <option value="">carregando...</option>
+  </select>
+  <div class="wallet-badge" id="walletBadge">—</div>
+  <div style="margin-left:auto; display:flex; gap:20px;">
+    <div>
+      <div style="font-size:.65rem;color:var(--muted)">Saldo</div>
+      <div style="font-size:.95rem;color:var(--orange);font-weight:bold" id="walletBalance">—</div>
+    </div>
+    <div>
+      <div style="font-size:.65rem;color:var(--muted)">UTXOs</div>
+      <div style="font-size:.95rem;color:var(--blue);font-weight:bold" id="walletUtxos">—</div>
+    </div>
+  </div>
+</div>
+
+
+<div class="grid">
+  <div class="card">
+    <div class="card-title">⛓ Blockchain <span class="badge rpc">RPC</span></div>
+    <div class="stat">
+      <div class="stat-label">Altura</div>
+      <div class="stat-value orange" id="blockHeight">—</div>
+      <div class="stat-sub" id="chainName">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Sincronização</div>
+      <div class="stat-value green" id="syncPct">—</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🌐 Rede <span class="badge rpc">RPC</span></div>
+    <div class="stat">
+      <div class="stat-label">Conexões</div>
+      <div class="stat-value blue" id="connections">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Versão</div>
+      <div class="stat-value" id="nodeVersion" style="font-size:.9rem">—</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💾 Mempool <span class="badge rpc">RPC</span></div>
+    <div class="stat">
+      <div class="stat-label">Transações pendentes</div>
+      <div class="stat-value purple" id="mempoolSize">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Tamanho</div>
+      <div class="stat-value" id="mempoolBytes" style="font-size:.9rem">—</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚡ Event Activity <span class="badge zmq">ZMQ</span></div>
+    <div class="stat">
+      <div class="stat-label">Txs recebidas</div>
+      <div class="stat-value orange" id="txObserved">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Blocos recebidos</div>
+      <div class="stat-value orange" id="blocksObserved">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Taxa</div>
+      <div class="stat-value green" id="txPerSec">—</div>
+      <div class="stat-sub">tx/segundo</div>
+    </div>
+  </div>
+</div>
+
+
+<div class="card div-card" id="divCard" style="margin-bottom:18px">
+  <div class="card-title">⚠️ ZMQ vs RPC</div>
+  <div class="div-status ok" id="divStatus">verificando...</div>
+  <div class="hash-label">Best Block (RPC)</div>
+  <div class="hash-value" id="bestBlock">—</div>
+  <div class="hash-label">Último Bloco ZMQ</div>
+  <div class="hash-value" id="lastSeenBlock">—</div>
+</div>
+
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">🔍 Últimos Blocos <span class="badge zmq">ZMQ</span></div>
+    <div class="ev-list" id="latestBlocks"><div class="empty">aguardando...</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">🔍 Últimas Transações <span class="badge zmq">ZMQ</span></div>
+    <div class="ev-list" id="latestTxs"><div class="empty">aguardando...</div></div>
+  </div>
+</div>
+
+<script>
+  const BASE = '';
+
+  
+  const fmtNum   = n => Number(n).toLocaleString('pt-BR');
+  const fmtBytes = b => b > 1e6 ? (b/1e6).toFixed(2)+' MB' : b > 1e3 ? (b/1e3).toFixed(1)+' KB' : b+' B';
+  const fmtTime  = ts => ts ? new Date(ts*1000).toLocaleTimeString('pt-BR') : '—';
+  const shortH   = h => h && h.length > 20 ? h.slice(0,10)+'...'+h.slice(-8) : (h||'—');
+
+  
+  let selectedWallet = '';
+
+  async function loadWallets() {
+    try {
+      const d = await fetchJSON('/wallets');
+      const sel = document.getElementById('walletSelect');
+      sel.innerHTML = d.available_wallets.map(w =>
+        `<option value="${w}" ${w === d.selected_wallet ? 'selected' : ''}>${w}</option>`
+      ).join('');
+      if (d.available_wallets.length === 0) {
+        sel.innerHTML = '<option value="">nenhuma wallet encontrada</option>';
+      }
+      selectedWallet = d.selected_wallet || '';
+      document.getElementById('walletBadge').textContent = selectedWallet || '—';
+    } catch(e) {  }
+  }
+
+  async function onWalletChange() {
+    const name = document.getElementById('walletSelect').value;
+    if (!name) return;
+    try {
+      const d = await postJSON('/wallet/select', { wallet: name });
+      selectedWallet = d.selected_wallet;
+      document.getElementById('walletBadge').textContent = selectedWallet;
+      await updateWalletStatus();
+    } catch(e) {
+      alert('Erro ao selecionar wallet: ' + e.message);
+    }
+  }
+
+  async function updateWalletStatus() {
+    try {
+      const d = await fetchJSON('/wallet/status');
+      document.getElementById('walletBalance').textContent = d.balance.toFixed(8) + ' BTC';
+      document.getElementById('walletUtxos').textContent   = d.utxos;
+    } catch(e) {
+      document.getElementById('walletBalance').textContent = '—';
+      document.getElementById('walletUtxos').textContent   = '—';
+    }
+  }
+
+  
+  async function updateNode() {
+    try {
+      const d = await fetchJSON('/api/node/info');
+      document.getElementById('blockHeight').textContent  = fmtNum(d.blockchain.blocks);
+      document.getElementById('chainName').textContent    = d.blockchain.chain.toUpperCase();
+      document.getElementById('syncPct').textContent      = (d.blockchain.verificationprogress*100).toFixed(2)+'%';
+      document.getElementById('connections').textContent  = d.network.connections;
+      document.getElementById('nodeVersion').textContent  = d.network.subversion;
+      document.getElementById('mempoolSize').textContent  = fmtNum(d.mempool.size);
+      document.getElementById('mempoolBytes').textContent = fmtBytes(d.mempool.bytes);
+      setOnline(true);
+    } catch(e) { setOnline(false); }
+  }
+
+  async function updateEvents() {
+    try {
+      const s = await fetchJSON('/api/events/summary');
+      document.getElementById('txObserved').textContent     = fmtNum(s.tx_observed);
+      document.getElementById('blocksObserved').textContent = fmtNum(s.blocks_observed);
+      document.getElementById('txPerSec').textContent       = s.tx_per_second.toFixed(2);
+
+      const l = await fetchJSON('/api/events/latest');
+
+      const blkEl = document.getElementById('latestBlocks');
+      blkEl.innerHTML = l.blocks?.length
+        ? l.blocks.map(b => `<div class="ev-item">
+            <div class="ev-dot blk"></div>
+            <div class="ev-hash" title="${b.hash}">${shortH(b.hash)}</div>
+            <div class="ev-time">${fmtTime(b.ts)}</div>
+          </div>`).join('')
+        : '<div class="empty">aguardando blocos...</div>';
+
+      const txEl = document.getElementById('latestTxs');
+      txEl.innerHTML = l.txs?.length
+        ? l.txs.map(t => `<div class="ev-item">
+            <div class="ev-dot tx"></div>
+            <div class="ev-hash" title="${t.txid}">${shortH(t.txid)}</div>
+            <div class="ev-time">${fmtTime(t.ts)}</div>
+          </div>`).join('')
+        : '<div class="empty">aguardando transações...</div>';
+    } catch(e) {  }
+  }
+
+  async function updateComparison() {
+    try {
+      const d = await fetchJSON('/api/events/state-comparison');
+      const card = document.getElementById('divCard');
+      const st   = document.getElementById('divStatus');
+      document.getElementById('bestBlock').textContent     = d.best_block || '—';
+      document.getElementById('lastSeenBlock').textContent = d.last_seen_block || 'nenhum bloco ZMQ ainda';
+      if (d.divergence) {
+        card.classList.add('alert'); st.className = 'div-status warn';
+        st.textContent = '⚠️ Divergência — ZMQ ≠ RPC';
+      } else {
+        card.classList.remove('alert'); st.className = 'div-status ok';
+        st.textContent = d.note || '✅ Sincronizado';
+      }
+    } catch(e) {  }
+  }
+
+  function setOnline(ok) {
+    document.getElementById('pulse').className = 'pulse' + (ok ? '' : ' dead');
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
+  }
+
+  
+  async function fetchJSON(path) {
+    const r = await fetch(BASE + path);
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
+  async function postJSON(path, body) {
+    const r = await fetch(BASE + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  }
+
+  
+  async function refresh() {
+    await Promise.all([
+      updateNode(),
+      updateEvents(),
+      updateComparison(),
+      updateWalletStatus(),
+    ]);
+  }
+
+  loadWallets().then(() => refresh());
+  setInterval(refresh, 5000);
+</script>
+</body>
+</html>
