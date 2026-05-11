@@ -1,1 +1,3 @@
 # corecraft
+
+resolvendo actividades
