@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bitcoin Monitor</title>
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --surface: #161616;
+      --border: #2a2a2a;
+      --text: #e8e8e8;
+      --muted: #888;
+      --orange: #f7931a;
+      --orange-dim: rgba(247,147,26,0.12);
+      --green: #22c55e;
+      --green-dim: rgba(34,197,94,0.12);
+      --red: #ef4444;
+      --red-dim: rgba(239,68,68,0.12);
+      --blue: #3b82f6;
+      --purple: #a855f7;
+      --yellow: #eab308;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', monospace;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+   
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: var(--orange);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: bold; color: #fff;
+    }
+    h1 { font-size: 1.3rem; letter-spacing: 1px; color: var(--orange); }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .pulse {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 2s infinite;
+    }
+    .pulse.dead { background: var(--red); box-shadow: 0 0 6px var(--red); animation: none; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .status-text { font-size: .75rem; color: var(--muted); }
+    .last-update { font-size: .7rem; color: var(--muted); }
+
+   
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      margin-bottom: 20px;
+    }
+    .grid-wide {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 1fr 1fr;
+      margin-bottom: 20px;
+    }
+    @media(max-width: 700px) { .grid-wide { grid-template-columns: 1fr; } }
+
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .card-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 16px;
+      font-size: .75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .card-icon { font-size: 1rem; }
+
+
+    .stat { margin-bottom: 14px; }
+    .stat:last-child { margin-bottom: 0; }
+    .stat-label { font-size: .7rem; color: var(--muted); margin-bottom: 4px; }
+    .stat-value { font-size: 1.6rem; font-weight: bold; color: var(--text); line-height: 1; }
+    .stat-value.orange { color: var(--orange); }
+    .stat-value.green  { color: var(--green);  }
+    .stat-value.blue   { color: var(--blue);   }
+    .stat-value.purple { color: var(--purple); }
+    .stat-sub { font-size: .7rem; color: var(--muted); margin-top: 2px; }
+
+  
+    .event-list { display: flex; flex-direction: column; gap: 6px; }
+    .event-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--border);
+      font-size: .72rem;
+    }
+    .event-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    }
+    .event-dot.blk { background: var(--orange); }
+    .event-dot.tx  { background: var(--blue); }
+    .event-hash {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text);
+      font-family: monospace;
+    }
+    .event-time { color: var(--muted); flex-shrink: 0; }
+
+
+    .divergence-card {
+      border-color: var(--green);
+      background: var(--green-dim);
+    }
+    .divergence-card.alert {
+      border-color: var(--red);
+      background: var(--red-dim);
+      animation: alertPulse 1.5s infinite;
+    }
+    @keyframes alertPulse {
+      0%,100% { border-color: var(--red); }
+      50%      { border-color: rgba(239,68,68,.3); }
+    }
+    .divergence-status {
+      font-size: 1.1rem;
+      font-weight: bold;
+      margin-bottom: 14px;
+    }
+    .divergence-status.ok   { color: var(--green); }
+    .divergence-status.warn { color: var(--red); }
+    .hash-row { margin-bottom: 8px; }
+    .hash-label { font-size: .68rem; color: var(--muted); margin-bottom: 2px; }
+    .hash-value {
+      font-size: .68rem;
+      word-break: break-all;
+      color: var(--text);
+      background: rgba(0,0,0,.3);
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+
+    .skeleton {
+      background: linear-gradient(90deg, #1e1e1e 25%, #2a2a2a 50%, #1e1e1e 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 4px;
+      height: 1.6rem;
+      width: 60%;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+   
+    .section-title {
+      font-size: .75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 12px;
+    }
+    .badge {
+      display: inline-block;
+      font-size: .65rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+    }
+    .badge.orange { background: var(--orange-dim); color: var(--orange); border: 1px solid var(--orange); }
+    .badge.blue   { background: rgba(59,130,246,.12); color: var(--blue); border: 1px solid var(--blue); }
+    .empty { color: var(--muted); font-size: .75rem; text-align: center; padding: 16px 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">₿</div>
+    <h1>BITCOIN MONITOR</h1>
+  </div>
+  <div class="header-right">
+    <div class="pulse" id="pulse"></div>
+    <span class="status-text" id="statusText">conectando...</span>
+    <span class="last-update" id="lastUpdate"></span>
+  </div>
+</header>
+
+
+<div class="grid" id="nodeGrid">
+  <div class="card">
+    <div class="card-header"><span class="card-icon">⛓</span> Blockchain</div>
+    <div class="stat">
+      <div class="stat-label">Altura</div>
+      <div class="stat-value orange" id="blockHeight">—</div>
+      <div class="stat-sub" id="chainName">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Sincronização</div>
+      <div class="stat-value green" id="syncPct">—</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon">🌐</span> Rede</div>
+    <div class="stat">
+      <div class="stat-label">Conexões</div>
+      <div class="stat-value blue" id="connections">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Versão</div>
+      <div class="stat-value" id="nodeVersion" style="font-size:1rem">—</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon">💾</span> Mempool</div>
+    <div class="stat">
+      <div class="stat-label">Transações pendentes</div>
+      <div class="stat-value purple" id="mempoolSize">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Tamanho</div>
+      <div class="stat-value" id="mempoolBytes" style="font-size:1rem">—</div>
+    </div>
+  </div>
+
+ 
+  <div class="card">
+    <div class="card-header"><span class="card-icon">⚡</span> Event Activity <span class="badge orange">ZMQ</span></div>
+    <div class="stat">
+      <div class="stat-label">Txs recebidas</div>
+      <div class="stat-value orange" id="txObserved">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Blocos recebidos</div>
+      <div class="stat-value orange" id="blocksObserved">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Taxa de eventos</div>
+      <div class="stat-value green" id="txPerSec">—</div>
+      <div class="stat-sub">tx/segundo</div>
+    </div>
+  </div>
+</div>
+
+
+<div style="margin-bottom: 20px;">
+  <div class="card divergence-card" id="divergenceCard">
+    <div class="card-header"><span class="card-icon">⚠️</span> State Comparison — ZMQ vs RPC</div>
+    <div class="divergence-status ok" id="divergenceStatus">verificando...</div>
+    <div class="hash-row">
+      <div class="hash-label">Best Block (RPC)</div>
+      <div class="hash-value" id="bestBlock">—</div>
+    </div>
+    <div class="hash-row">
+      <div class="hash-label">Último Bloco ZMQ</div>
+      <div class="hash-value" id="lastSeenBlock">—</div>
+    </div>
+  </div>
+</div>
+
+
+<div class="grid-wide">
+  <div class="card">
+    <div class="card-header"><span class="card-icon">🔍</span> Últimos Blocos <span class="badge orange">ZMQ</span></div>
+    <div class="event-list" id="latestBlocks">
+      <div class="empty">aguardando blocos...</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-icon">🔍</span> Últimas Transações <span class="badge blue">ZMQ</span></div>
+    <div class="event-list" id="latestTxs">
+      <div class="empty">aguardando transações...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const BASE = '';  
+
+ 
+  function fmtNum(n) { return Number(n).toLocaleString('pt-BR'); }
+  function fmtBytes(b) {
+    if (b > 1e6) return (b/1e6).toFixed(2) + ' MB';
+    if (b > 1e3) return (b/1e3).toFixed(1) + ' KB';
+    return b + ' B';
+  }
+  function fmtTime(ts) {
+    if (!ts) return '—';
+    return new Date(ts * 1000).toLocaleTimeString('pt-BR');
+  }
+  function shortHash(h) {
+    if (!h || h === '—') return '—';
+    return h.slice(0, 10) + '...' + h.slice(-8);
+  }
+
+  
+  async function fetchJSON(path) {
+    const r = await fetch(BASE + path);
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
+
+ 
+  async function updateNodeInfo() {
+    try {
+      const d = await fetchJSON('/api/node/info');
+      document.getElementById('blockHeight').textContent   = fmtNum(d.blockchain.blocks);
+      document.getElementById('chainName').textContent     = d.blockchain.chain.toUpperCase();
+      document.getElementById('syncPct').textContent       =
+        (d.blockchain.verificationprogress * 100).toFixed(2) + '%';
+      document.getElementById('connections').textContent   = d.network.connections;
+      document.getElementById('nodeVersion').textContent   = d.network.subversion;
+      document.getElementById('mempoolSize').textContent   = fmtNum(d.mempool.size);
+      document.getElementById('mempoolBytes').textContent  = fmtBytes(d.mempool.bytes);
+      setOnline(true);
+    } catch(e) {
+      setOnline(false);
+    }
+  }
+
+ 
+  async function updateSummary() {
+    try {
+      const d = await fetchJSON('/api/events/summary');
+      document.getElementById('txObserved').textContent     = fmtNum(d.tx_observed);
+      document.getElementById('blocksObserved').textContent = fmtNum(d.blocks_observed);
+      document.getElementById('txPerSec').textContent       = d.tx_per_second.toFixed(2);
+    } catch(e) {  }
+  }
+
+  
+  async function updateLatest() {
+    try {
+      const d = await fetchJSON('/api/events/latest');
+
+      
+      const blkEl = document.getElementById('latestBlocks');
+      if (d.blocks && d.blocks.length) {
+        blkEl.innerHTML = d.blocks.map(b => `
+          <div class="event-item">
+            <div class="event-dot blk"></div>
+            <div class="event-hash" title="${b.hash}">${shortHash(b.hash)}</div>
+            <div class="event-time">${fmtTime(b.ts)}</div>
+          </div>`).join('');
+      } else {
+        blkEl.innerHTML = '<div class="empty">aguardando blocos...</div>';
+      }
+
+    
+      const txEl = document.getElementById('latestTxs');
+      if (d.txs && d.txs.length) {
+        txEl.innerHTML = d.txs.map(t => `
+          <div class="event-item">
+            <div class="event-dot tx"></div>
+            <div class="event-hash" title="${t.txid}">${shortHash(t.txid)}</div>
+            <div class="event-time">${fmtTime(t.ts)}</div>
+          </div>`).join('');
+      } else {
+        txEl.innerHTML = '<div class="empty">aguardando transações...</div>';
+      }
+    } catch(e) {  }
+  }
+
+  
+  async function updateComparison() {
+    try {
+      const d = await fetchJSON('/api/events/state-comparison');
+      const card   = document.getElementById('divergenceCard');
+      const status = document.getElementById('divergenceStatus');
+
+      document.getElementById('bestBlock').textContent     = d.best_block || '—';
+      document.getElementById('lastSeenBlock').textContent = d.last_seen_block || 'nenhum bloco ZMQ ainda';
+
+      if (d.divergence) {
+        card.classList.add('alert');
+        status.className = 'divergence-status warn';
+        status.textContent = '⚠️ Divergência detectada — ZMQ ≠ RPC';
+      } else {
+        card.classList.remove('alert');
+        status.className = 'divergence-status ok';
+        status.textContent = d.note || '✅ Sincronizado';
+      }
+    } catch(e) {  }
+  }
+
+  
+  function setOnline(ok) {
+    document.getElementById('pulse').className    = 'pulse' + (ok ? '' : ' dead');
+    document.getElementById('statusText').textContent = ok ? 'online' : 'offline';
+    document.getElementById('lastUpdate').textContent =
+      'atualizado ' + new Date().toLocaleTimeString('pt-BR');
+  }
+
+ 
+  async function refresh() {
+    await Promise.all([
+      updateNodeInfo(),
+      updateSummary(),
+      updateLatest(),
+      updateComparison(),
+    ]);
+  }
+
+  refresh();
+  setInterval(refresh, 5000);  
+</script>
+</body>
+</html>
