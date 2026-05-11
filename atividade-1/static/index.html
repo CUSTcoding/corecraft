@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bitcoin Monitor — Aula 01</title>
+  <style>
+    :root {
+      --bg: #0d0d0d; --surface: #161616; --border: #2a2a2a;
+      --text: #e8e8e8; --muted: #777;
+      --orange: #f7931a; --orange-dim: rgba(247,147,26,.12);
+      --green: #22c55e; --green-dim: rgba(34,197,94,.12);
+      --red: #ef4444;   --red-dim: rgba(239,68,68,.12);
+      --yellow: #eab308; --blue: #3b82f6; --purple: #a855f7;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text);
+           font-family: 'Courier New', monospace; min-height: 100vh; padding: 24px; }
+
+    
+    header { display: flex; align-items: center; justify-content: space-between;
+             margin-bottom: 28px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { width: 36px; height: 36px; background: var(--orange); border-radius: 8px;
+                 display: flex; align-items: center; justify-content: center;
+                 font-size: 20px; font-weight: bold; color: #fff; }
+    h1 { font-size: 1.25rem; letter-spacing: 1px; color: var(--orange); }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+             box-shadow: 0 0 6px var(--green); animation: blink 2s infinite; }
+    .pulse.dead { background: var(--red); box-shadow: 0 0 6px var(--red); animation: none; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .ts { font-size: .68rem; color: var(--muted); }
+
+    
+    .grid { display: grid; gap: 16px;
+            grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+            margin-bottom: 20px; }
+
+    
+    .card { background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 20px; }
+    .card-title { font-size: .72rem; color: var(--muted); text-transform: uppercase;
+                  letter-spacing: .08em; margin-bottom: 16px;
+                  display: flex; align-items: center; gap: 6px; }
+
+    
+    .stat { margin-bottom: 14px; }
+    .stat:last-child { margin-bottom: 0; }
+    .stat-label { font-size: .68rem; color: var(--muted); margin-bottom: 3px; }
+    .stat-value { font-size: 1.5rem; font-weight: bold; line-height: 1; }
+    .stat-value.orange { color: var(--orange); }
+    .stat-value.green  { color: var(--green); }
+    .stat-value.blue   { color: var(--blue); }
+    .stat-value.purple { color: var(--purple); }
+    .stat-value.yellow { color: var(--yellow); }
+    .stat-value.sm     { font-size: 1rem; }
+    .stat-sub { font-size: .68rem; color: var(--muted); margin-top: 2px; }
+
+    
+    .dist-bar { display: flex; height: 12px; border-radius: 6px;
+                overflow: hidden; margin: 8px 0 4px; gap: 2px; }
+    .dist-bar-seg { transition: width .5s; }
+    .dist-bar-seg.low    { background: var(--blue); }
+    .dist-bar-seg.medium { background: var(--orange); }
+    .dist-bar-seg.high   { background: var(--red); }
+    .dist-legend { display: flex; gap: 14px; font-size: .66rem; }
+    .dist-legend span { display: flex; align-items: center; gap: 4px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot.low    { background: var(--blue); }
+    .dot.medium { background: var(--orange); }
+    .dot.high   { background: var(--red); }
+
+    
+    .sync-ok   { border-color: var(--green); background: var(--green-dim); }
+    .sync-warn { border-color: var(--yellow); background: rgba(234,179,8,.08); }
+    .sync-err  { border-color: var(--red); background: var(--red-dim); }
+
+    
+    .prog-track { height: 8px; background: #222; border-radius: 4px; overflow: hidden; margin: 6px 0; }
+    .prog-fill { height: 100%; background: var(--green); border-radius: 4px; transition: width .6s; }
+    .prog-fill.warn { background: var(--yellow); }
+    .prog-fill.err  { background: var(--red); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">₿</div>
+    <h1>BITCOIN MONITOR</h1>
+  </div>
+  <div class="header-right">
+    <div class="pulse" id="pulse"></div>
+    <span class="ts" id="lastUpdate">—</span>
+  </div>
+</header>
+
+<div class="grid">
+
+  
+  <div class="card">
+    <div class="card-title">⛓ Blockchain</div>
+    <div class="stat">
+      <div class="stat-label">Altura</div>
+      <div class="stat-value orange" id="blockHeight">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Rede</div>
+      <div class="stat-value sm" id="chainName">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Melhor bloco</div>
+      <div class="stat-value sm" id="bestHash" style="font-size:.7rem;word-break:break-all">—</div>
+    </div>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-title">🧠 Mempool Intelligence</div>
+    <div class="stat">
+      <div class="stat-label">Total de transações</div>
+      <div class="stat-value orange" id="txCount">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Fee média</div>
+      <div class="stat-value green" id="avgFee">—</div>
+      <div class="stat-sub">sat/vB</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Fee mín / máx</div>
+      <div class="stat-value sm" id="minMaxFee">—</div>
+      <div class="stat-sub">sat/vB</div>
+    </div>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-title">📊 Distribuição de Fee</div>
+    <div class="stat">
+      <div class="stat-label">low / medium / high (sat/vB)</div>
+      <div class="dist-bar" id="distBar">
+        <div class="dist-bar-seg low"    id="barLow"    style="width:33%"></div>
+        <div class="dist-bar-seg medium" id="barMedium" style="width:34%"></div>
+        <div class="dist-bar-seg high"   id="barHigh"   style="width:33%"></div>
+      </div>
+      <div class="dist-legend">
+        <span><div class="dot low"></div>   <span id="countLow">—</span> low (&lt;10)</span>
+        <span><div class="dot medium"></div><span id="countMedium">—</span> mid (10-50)</span>
+        <span><div class="dot high"></div>  <span id="countHigh">—</span> high (&gt;50)</span>
+      </div>
+    </div>
+    <div class="stat" style="margin-top:12px">
+      <div class="stat-label">Tamanho total da mempool</div>
+      <div class="stat-value blue" id="totalVsize">—</div>
+      <div class="stat-sub">vbytes</div>
+    </div>
+  </div>
+
+  
+  <div class="card" id="syncCard">
+    <div class="card-title">⏱ Node Sync Status</div>
+    <div class="stat">
+      <div class="stat-label">Blocos validados</div>
+      <div class="stat-value blue" id="syncBlocks">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Headers conhecidos</div>
+      <div class="stat-value" id="syncHeaders">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Lag (headers - blocks)</div>
+      <div class="stat-value" id="syncLag">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Progresso</div>
+      <div class="prog-track">
+        <div class="prog-fill" id="progFill" style="width:0%"></div>
+      </div>
+      <div class="stat-sub" id="progLabel">—</div>
+    </div>
+    <div style="font-size:.75rem; margin-top:10px;" id="syncStatus">verificando...</div>
+  </div>
+
+</div>
+
+<script>
+  const BASE = '';
+
+  const fmtNum   = n  => Number(n).toLocaleString('pt-BR');
+  const fmtBytes = b  => b > 1e6 ? (b/1e6).toFixed(2)+' MB' : b > 1e3 ? (b/1e3).toFixed(1)+' KB' : b+' B';
+
+  
+  async function updateBlockchain() {
+    try {
+      const d = await fetchJSON('/api/blockchain/info');
+      document.getElementById('blockHeight').textContent = fmtNum(d.blocks);
+      document.getElementById('chainName').textContent   = d.chain.toUpperCase();
+      document.getElementById('bestHash').textContent    = d.bestblockhash;
+      setOnline(true);
+    } catch(e) { setOnline(false); }
+  }
+
+  
+  async function updateMempool() {
+    try {
+      const d = await fetchJSON('/api/mempool/summary');
+      document.getElementById('txCount').textContent     = fmtNum(d.tx_count);
+      document.getElementById('avgFee').textContent      = d.avg_fee_rate.toFixed(2);
+      document.getElementById('minMaxFee').textContent   = `${d.min_fee_rate.toFixed(1)} / ${d.max_fee_rate.toFixed(1)}`;
+      document.getElementById('totalVsize').textContent  = fmtNum(d.total_vsize);
+
+      const dist = d.fee_distribution;
+      const total = dist.low + dist.medium + dist.high || 1;
+      const pLow  = (dist.low    / total * 100).toFixed(1);
+      const pMed  = (dist.medium / total * 100).toFixed(1);
+      const pHigh = (dist.high   / total * 100).toFixed(1);
+
+      document.getElementById('barLow').style.width    = pLow  + '%';
+      document.getElementById('barMedium').style.width = pMed  + '%';
+      document.getElementById('barHigh').style.width   = pHigh + '%';
+
+      document.getElementById('countLow').textContent    = fmtNum(dist.low);
+      document.getElementById('countMedium').textContent = fmtNum(dist.medium);
+      document.getElementById('countHigh').textContent   = fmtNum(dist.high);
+    } catch(e) {  }
+  }
+
+  
+  async function updateLag() {
+    try {
+      const d = await fetchJSON('/api/blockchain/lag');
+      document.getElementById('syncBlocks').textContent  = fmtNum(d.blocks);
+      document.getElementById('syncHeaders').textContent = fmtNum(d.headers);
+      document.getElementById('syncStatus').textContent  = d.status;
+
+      const lagEl = document.getElementById('syncLag');
+      lagEl.textContent = fmtNum(d.lag);
+      lagEl.className   = 'stat-value ' + lagColor(d.lag);
+
+      const pct  = Math.min(d.verification_progress, 100);
+      const fill = document.getElementById('progFill');
+      fill.style.width = pct + '%';
+      fill.className   = 'prog-fill' + (pct < 90 ? ' err' : pct < 99 ? ' warn' : '');
+      document.getElementById('progLabel').textContent = pct.toFixed(2) + '%';
+
+      
+      const card = document.getElementById('syncCard');
+      card.className = 'card ' + (d.lag === 0 ? 'sync-ok' : d.lag < 144 ? 'sync-warn' : 'sync-err');
+    } catch(e) {  }
+  }
+
+  function lagColor(lag) {
+    if (lag === 0)   return 'green';
+    if (lag < 10)    return 'yellow';
+    if (lag < 144)   return 'orange';
+    return 'red';
+  }
+
+  function setOnline(ok) {
+    document.getElementById('pulse').className = 'pulse' + (ok ? '' : ' dead');
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
+  }
+
+  async function fetchJSON(path) {
+    const r = await fetch(BASE + path);
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
+
+  async function refresh() {
+    await Promise.all([updateBlockchain(), updateMempool(), updateLag()]);
+  }
+
+  refresh();
+  setInterval(refresh, 10000); 
+</script>
+</body>
+</html>
